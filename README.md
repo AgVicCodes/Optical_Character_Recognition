@@ -61,3 +61,63 @@ Data processing is done using PySpark. Key steps include:
   # Select the full array of LaTeX characters without exploding
   df = df.select("image_data.full_latex_chars")
   df.show(truncate=False)
+# Dataset Splitting and Preparation Process
+
+This repository uses a multi-stage process to ingest, split, and prepare the handwritten mathematical expression dataset for segmentation and model training. Below is a summary of the key steps in the pipeline:
+
+## 1. Accessing the Data
+
+- **Local and Cloud Access:**  
+  - The code uses glob patterns to identify local JSON files (e.g., `"archive/batch_*/json/kaggle_data_*.json"`).
+  - The dataset is also downloaded from Kaggle using the `kagglehub` package.
+
+- **Batch Organization:**  
+  - Data is organized into batches. For each batch, the script collects the JSON metadata files and the corresponding image files.
+
+## 2. Creating the Spark DataFrame
+
+- **Unioning JSON Files:**  
+  - An empty Spark DataFrame is created using a schema derived from one sample JSON.
+  - Each JSON file is read and unioned into a single DataFrame to consolidate all the metadata.
+
+- **Casting Nested Columns:**  
+  - The nested JSON fields (e.g., `full_latex_chars`, `visible_latex_chars`, bounding box coordinates, PNG masks) are cast into proper Spark types such as arrays and floats.
+  - This ensures the data is structured correctly for further processing.
+
+## 3. Cleaning and Reducing the DataFrame
+
+- **Dropping Unnecessary Columns:**  
+  - After unpacking and casting the necessary fields, the original nested column (`image_data`) and other unused fields (e.g., `unicode_less_curlies`, `unicode_str`) are dropped.  
+  - This leaves a clean DataFrame (`image_props`) containing only the essential metadata for image segmentation.
+
+## 4. Locating Image Files
+
+- **Mapping Metadata to Images:**  
+  - A helper function scans the image directories and matches the filename from the metadata with the actual image file stored on disk.
+  - The result is a mapping between the Spark DataFrame rows and the corresponding image file paths.
+
+## 5. Preparing Data for Segmentation
+
+- **Segmentation Functions:**  
+  - **Preprocessing:**  
+    - Images are preprocessed (e.g., resized, thresholded) to generate binary images.
+  - **Bounding Box Extraction:**  
+    - Contours are detected from the binary images, and bounding boxes are computed for each symbol.
+  - **Optional Mask Application:**  
+    - PNG masks are decoded and overlaid on the extracted image regions to refine segmentation.
+  - **Extraction & Saving:**  
+    - Each segmented symbol is extracted and saved in output directories named after their corresponding LaTeX labels.
+
+## 6. Overall Pipeline Flow
+
+1. **Data Ingestion:**  
+   - Read multiple JSON files and union them into one Spark DataFrame.
+2. **Data Cleaning:**  
+   - Cast nested fields into appropriate data types and drop unnecessary columns.
+3. **Image Mapping:**  
+   - Locate the corresponding background images using the filename field.
+4. **Segmentation & Annotation:**  
+   - Apply segmentation on each image using bounding box and mask data.
+   - Write out segmented images into folders corresponding to their LaTeX labels.
+
+This multi-stage process ensures that the raw, heterogeneous data is split and prepared in a scalable manner using Spark, making it ready for subsequent segmentation and model training steps.
